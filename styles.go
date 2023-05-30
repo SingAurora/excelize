@@ -18,6 +18,7 @@ import (
 	"io"
 	"math"
 	"reflect"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -867,6 +868,68 @@ var operatorType = map[string]string{
 	"continueMonth":      "continue month",
 	"notBetween":         "not between",
 	"greaterThanOrEqual": "greater than or equal to",
+}
+
+// borderStyles defined the list of valid Border.Style.
+var borderStyles = []string{
+	"none",
+	"thin",
+	"medium",
+	"dashed",
+	"dotted",
+	"thick",
+	"double",
+	"hair",
+	"mediumDashed",
+	"dashDot",
+	"mediumDashDot",
+	"dashDotDot",
+	"mediumDashDotDot",
+	"slantDashDot",
+}
+
+// fillPatterns defined the list of valid Fill.Pattern.
+var fillPatterns = []string{
+	"none",
+	"solid",
+	"mediumGray",
+	"darkGray",
+	"lightGray",
+	"darkHorizontal",
+	"darkVertical",
+	"darkDown",
+	"darkUp",
+	"darkGrid",
+	"darkTrellis",
+	"lightHorizontal",
+	"lightVertical",
+	"lightDown",
+	"lightUp",
+	"lightGrid",
+	"lightTrellis",
+	"gray125",
+	"gray0625",
+}
+
+// fillShadings defined the list of valid Fill.Shading.
+var fillShadings = []xlsxGradientFill{
+	{Degree: 90, Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
+	{Degree: 270, Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
+	{Degree: 90, Stop: []*xlsxGradientFillStop{{}, {Position: 0.5}, {Position: 1}}},
+	{Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
+	{Degree: 180, Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
+	{Stop: []*xlsxGradientFillStop{{}, {Position: 0.5}, {Position: 1}}},
+	{Degree: 45, Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
+	{Degree: 255, Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
+	{Degree: 45, Stop: []*xlsxGradientFillStop{{}, {Position: 0.5}, {Position: 1}}},
+	{Degree: 135, Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
+	{Degree: 315, Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
+	{Degree: 135, Stop: []*xlsxGradientFillStop{{}, {Position: 0.5}, {Position: 1}}},
+	{Stop: []*xlsxGradientFillStop{{}, {Position: 1}}, Type: "path"},
+	{Stop: []*xlsxGradientFillStop{{}, {Position: 1}}, Type: "path", Left: 1, Right: 1},
+	{Stop: []*xlsxGradientFillStop{{}, {Position: 1}}, Type: "path", Bottom: 1, Top: 1},
+	{Stop: []*xlsxGradientFillStop{{}, {Position: 1}}, Type: "path", Bottom: 1, Left: 1, Right: 1, Top: 1},
+	{Stop: []*xlsxGradientFillStop{{}, {Position: 1}}, Type: "path", Bottom: 0.5, Left: 0.5, Right: 0.5, Top: 0.5},
 }
 
 // printCommaSep format number with thousands separator.
@@ -2440,54 +2503,13 @@ func getFillID(styleSheet *xlsxStyleSheet, style *Style) (fillID int) {
 // newFills provides a function to add fill elements in the styles.xml by
 // given cell format settings.
 func newFills(style *Style, fg bool) *xlsxFill {
-	patterns := []string{
-		"none",
-		"solid",
-		"mediumGray",
-		"darkGray",
-		"lightGray",
-		"darkHorizontal",
-		"darkVertical",
-		"darkDown",
-		"darkUp",
-		"darkGrid",
-		"darkTrellis",
-		"lightHorizontal",
-		"lightVertical",
-		"lightDown",
-		"lightUp",
-		"lightGrid",
-		"lightTrellis",
-		"gray125",
-		"gray0625",
-	}
-	variants := []xlsxGradientFill{
-		{Degree: 90, Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
-		{Degree: 270, Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
-		{Degree: 90, Stop: []*xlsxGradientFillStop{{}, {Position: 0.5}, {Position: 1}}},
-		{Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
-		{Degree: 180, Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
-		{Stop: []*xlsxGradientFillStop{{}, {Position: 0.5}, {Position: 1}}},
-		{Degree: 45, Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
-		{Degree: 255, Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
-		{Degree: 45, Stop: []*xlsxGradientFillStop{{}, {Position: 0.5}, {Position: 1}}},
-		{Degree: 135, Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
-		{Degree: 315, Stop: []*xlsxGradientFillStop{{}, {Position: 1}}},
-		{Degree: 135, Stop: []*xlsxGradientFillStop{{}, {Position: 0.5}, {Position: 1}}},
-		{Stop: []*xlsxGradientFillStop{{}, {Position: 1}}, Type: "path"},
-		{Stop: []*xlsxGradientFillStop{{}, {Position: 1}}, Type: "path", Left: 1, Right: 1},
-		{Stop: []*xlsxGradientFillStop{{}, {Position: 1}}, Type: "path", Bottom: 1, Top: 1},
-		{Stop: []*xlsxGradientFillStop{{}, {Position: 1}}, Type: "path", Bottom: 1, Left: 1, Right: 1, Top: 1},
-		{Stop: []*xlsxGradientFillStop{{}, {Position: 1}}, Type: "path", Bottom: 0.5, Left: 0.5, Right: 0.5, Top: 0.5},
-	}
-
 	var fill xlsxFill
 	switch style.Fill.Type {
 	case "gradient":
 		if len(style.Fill.Color) != 2 || style.Fill.Shading < 0 || style.Fill.Shading > 16 {
 			break
 		}
-		gradient := variants[style.Fill.Shading]
+		gradient := fillShadings[style.Fill.Shading]
 		gradient.Stop[0].Color.RGB = getPaletteColor(style.Fill.Color[0])
 		gradient.Stop[1].Color.RGB = getPaletteColor(style.Fill.Color[1])
 		if len(gradient.Stop) == 3 {
@@ -2502,7 +2524,7 @@ func newFills(style *Style, fg bool) *xlsxFill {
 			break
 		}
 		var pattern xlsxPatternFill
-		pattern.PatternType = patterns[style.Fill.Pattern]
+		pattern.PatternType = fillPatterns[style.Fill.Pattern]
 		if fg {
 			if pattern.FgColor == nil {
 				pattern.FgColor = new(xlsxColor)
@@ -2571,23 +2593,6 @@ func getBorderID(styleSheet *xlsxStyleSheet, style *Style) (borderID int) {
 // newBorders provides a function to add border elements in the styles.xml by
 // given borders format settings.
 func newBorders(style *Style) *xlsxBorder {
-	styles := []string{
-		"none",
-		"thin",
-		"medium",
-		"dashed",
-		"dotted",
-		"thick",
-		"double",
-		"hair",
-		"mediumDashed",
-		"dashDot",
-		"mediumDashDot",
-		"dashDotDot",
-		"mediumDashDotDot",
-		"slantDashDot",
-	}
-
 	var border xlsxBorder
 	for _, v := range style.Border {
 		if 0 <= v.Style && v.Style < 14 {
@@ -2595,23 +2600,23 @@ func newBorders(style *Style) *xlsxBorder {
 			color.RGB = getPaletteColor(v.Color)
 			switch v.Type {
 			case "left":
-				border.Left.Style = styles[v.Style]
+				border.Left.Style = borderStyles[v.Style]
 				border.Left.Color = &color
 			case "right":
-				border.Right.Style = styles[v.Style]
+				border.Right.Style = borderStyles[v.Style]
 				border.Right.Color = &color
 			case "top":
-				border.Top.Style = styles[v.Style]
+				border.Top.Style = borderStyles[v.Style]
 				border.Top.Color = &color
 			case "bottom":
-				border.Bottom.Style = styles[v.Style]
+				border.Bottom.Style = borderStyles[v.Style]
 				border.Bottom.Color = &color
 			case "diagonalUp":
-				border.Diagonal.Style = styles[v.Style]
+				border.Diagonal.Style = borderStyles[v.Style]
 				border.Diagonal.Color = &color
 				border.DiagonalUp = true
 			case "diagonalDown":
-				border.Diagonal.Style = styles[v.Style]
+				border.Diagonal.Style = borderStyles[v.Style]
 				border.Diagonal.Color = &color
 				border.DiagonalDown = true
 			}
@@ -3819,4 +3824,255 @@ func ThemeColor(baseColor string, tint float64) string {
 	}
 	br, bg, bb := HSLToRGB(h, s, l)
 	return fmt.Sprintf("FF%02X%02X%02X", br, bg, bb)
+}
+
+// GetStyle provides a function to get style by given style ID.
+func (f *File) GetStyle(styleID int) (*Style, error) {
+	styleSheet, err := f.stylesReader()
+	if err != nil {
+		return nil, err
+	}
+	if styleID < 0 || styleSheet.CellXfs == nil || len(styleSheet.CellXfs.Xf) <= styleID {
+		return nil, newInvalidStyleID(styleID)
+	}
+
+	xf := styleSheet.CellXfs.Xf[styleID]
+	var border []Border
+	var customNumFmt *string
+	var alignment *Alignment
+	var protection *Protection
+	var font *Font
+	var fill *Fill = &Fill{}
+	numFmt, customNumFmt, decimalPlaces, negRed, lang := 0, nil, 2, false, ""
+	if xf.ApplyFont != nil && *xf.ApplyFont != false {
+		font = getFont(styleSheet, *xf.FontID)
+	}
+	if xf.ApplyBorder != nil && *xf.ApplyBorder != false {
+		border = getBorders(styleSheet, *xf.BorderID)
+	}
+	if xf.ApplyFill != nil && *xf.ApplyFill != false {
+		fill = getFill(styleSheet, *xf.FillID)
+	}
+	// 找不到对应的numFmt,返回的numFmt为-1
+	if xf.ApplyNumberFormat != nil && *xf.ApplyNumberFormat != false {
+		numFmt, customNumFmt, decimalPlaces, negRed, lang = getNumFmtStyle(xf, styleSheet)
+	}
+	if xf.ApplyAlignment != nil && *xf.ApplyAlignment != false {
+		alignment = &Alignment{
+			Horizontal:      xf.Alignment.Horizontal,
+			Indent:          xf.Alignment.Indent,
+			JustifyLastLine: xf.Alignment.JustifyLastLine,
+			ReadingOrder:    xf.Alignment.ReadingOrder,
+			RelativeIndent:  xf.Alignment.RelativeIndent,
+			ShrinkToFit:     xf.Alignment.ShrinkToFit,
+			TextRotation:    xf.Alignment.TextRotation,
+			Vertical:        xf.Alignment.Vertical,
+			WrapText:        xf.Alignment.WrapText,
+		}
+	}
+
+	if xf.ApplyProtection != nil && *xf.ApplyProtection != false {
+		protection = &Protection{
+			Locked: *xf.Protection.Locked,
+			Hidden: *xf.Protection.Hidden,
+		}
+	}
+
+	style := &Style{
+		Border:        border,
+		Fill:          *fill,
+		Font:          font,
+		Alignment:     alignment,
+		Protection:    protection,
+		NumFmt:        numFmt,
+		DecimalPlaces: decimalPlaces,
+		CustomNumFmt:  customNumFmt,
+		NegRed:        negRed,
+		Lang:          lang,
+	}
+	return style, err
+}
+
+// getFont provides a function to get font by given font ID.
+func getFont(xlsxStyle *xlsxStyleSheet, fontID int) *Font {
+	judgeBoolNil := func(str *attrValBool) bool {
+		if str == nil {
+			return false
+		}
+		return *str.Val
+	}
+	xfFont := xlsxStyle.Fonts.Font[fontID]
+	underline := "none"
+	if xfFont.U != nil {
+		underline = *xfFont.U.Val
+	}
+	if xfFont.Color.RGB != "" {
+		xfFont.Color.RGB = xfFont.Color.RGB[2:]
+	}
+	font := &Font{
+		Bold:         judgeBoolNil(xfFont.B),
+		Italic:       judgeBoolNil(xfFont.I),
+		Underline:    underline,
+		Family:       *xfFont.Name.Val,
+		Size:         *xfFont.Sz.Val,
+		Strike:       judgeBoolNil(xfFont.Strike),
+		Color:        xfFont.Color.RGB,
+		ColorIndexed: xfFont.Color.Indexed,
+		ColorTheme:   xfFont.Color.Theme,
+		ColorTint:    xfFont.Color.Tint,
+		VertAlign:    "",
+	}
+	return font
+}
+
+// getBorder provides a function to get border by given border ID.
+func getBorders(styleSheet *xlsxStyleSheet, borderID int) []Border {
+
+	borders := make([]Border, 0)
+	getBorderStyleIndex := func(style string) int {
+		index := 0
+		for i, borderStyle := range borderStyles {
+			if borderStyle == style {
+				index = i
+			}
+		}
+		return index
+	}
+	xlsxBorder := styleSheet.Borders.Border[borderID]
+
+	if xlsxBorder.Left.Style != "" {
+		border := Border{
+			Type:  "left",
+			Color: xlsxBorder.Left.Color.RGB[2:],
+			Style: getBorderStyleIndex(xlsxBorder.Left.Style),
+		}
+		borders = append(borders, border)
+	}
+
+	if xlsxBorder.Right.Style != "" {
+		border := Border{
+			Type:  "right",
+			Color: xlsxBorder.Right.Color.RGB[2:],
+			Style: getBorderStyleIndex(xlsxBorder.Right.Style),
+		}
+		borders = append(borders, border)
+	}
+
+	if xlsxBorder.Top.Style != "" {
+		border := Border{
+			Type:  "top",
+			Color: xlsxBorder.Top.Color.RGB[2:],
+			Style: getBorderStyleIndex(xlsxBorder.Top.Style),
+		}
+		borders = append(borders, border)
+	}
+
+	if xlsxBorder.Bottom.Style != "" {
+		border := Border{
+			Type:  "bottom",
+			Color: xlsxBorder.Bottom.Color.RGB[2:],
+			Style: getBorderStyleIndex(xlsxBorder.Bottom.Style),
+		}
+		borders = append(borders, border)
+	}
+
+	if xlsxBorder.DiagonalUp {
+		border := Border{
+			Type:  "diagonalUp",
+			Color: xlsxBorder.Diagonal.Color.RGB[2:],
+			Style: getBorderStyleIndex(xlsxBorder.Diagonal.Style),
+		}
+		borders = append(borders, border)
+	}
+
+	if xlsxBorder.DiagonalDown {
+		border := Border{
+			Type:  "diagonalDown",
+			Color: xlsxBorder.Diagonal.Color.RGB[2:],
+			Style: getBorderStyleIndex(xlsxBorder.Diagonal.Style),
+		}
+		borders = append(borders, border)
+	}
+	return borders
+}
+
+// getFill provides a function to get fill by given fill ID.
+func getFill(styleSheet *xlsxStyleSheet, fillID int) *Fill {
+	xlsxFill := styleSheet.Fills.Fill[fillID]
+	fill := &Fill{}
+	if xlsxFill.PatternFill != nil {
+		fill.Type = "pattern"
+		for i, pattern := range fillPatterns {
+			if pattern == xlsxFill.PatternFill.PatternType {
+				fill.Pattern = i
+				break
+			}
+		}
+		if xlsxFill.PatternFill.FgColor != nil {
+			fill.Color = append(fill.Color, xlsxFill.PatternFill.FgColor.RGB[2:])
+		}
+	} else {
+		fill.Type = "gradient"
+		fill.Color = append(fill.Color, xlsxFill.GradientFill.Stop[0].Color.RGB[2:])
+		fill.Color = append(fill.Color, xlsxFill.GradientFill.Stop[1].Color.RGB[2:])
+		xlsxFill.GradientFill.Stop[0].Color.RGB = ""
+		xlsxFill.GradientFill.Stop[1].Color.RGB = ""
+		if len(xlsxFill.GradientFill.Stop) == 3 {
+			xlsxFill.GradientFill.Stop[2].Color.RGB = ""
+		}
+		for i, variant := range fillShadings {
+			if reflect.DeepEqual(*xlsxFill.GradientFill, variant) {
+				fill.Shading = i
+				break
+			}
+		}
+	}
+	return fill
+}
+
+// getNumFmtStyle provides a function to get Style.NumFmt, Style.CustomNumFmt,
+// Style.DecimalPlaces, Style.DecimalPlaces and Style.Lang by given xlsxXf and
+// xlsxStyleSheet.
+func getNumFmtStyle(xf xlsxXf, styleSheet *xlsxStyleSheet) (numFmt int, customNumFmt *string, decimalPlaces int, negRed bool, lang string) {
+	numFmtID := *xf.NumFmtID
+	decimalPlaces = 2
+	if styleSheet.NumFmts == nil {
+		numFmt = numFmtID
+		return
+	}
+
+	for _, x := range styleSheet.NumFmts.NumFmt {
+		if x.NumFmtID == numFmtID {
+			customNumFmt = &x.FormatCode
+			break
+		}
+	}
+
+	if customNumFmt == nil {
+		numFmt = numFmtID
+		return
+	}
+
+	decimalPlaces = func(str string) int {
+		re := regexp.MustCompile(`\.\d+`)
+		match := re.FindString(str)
+		if match == "" {
+			return 0
+		}
+		return len(match) - 1
+	}(*customNumFmt)
+
+	dp := "0."
+	for i := 0; i < decimalPlaces; i++ {
+		dp += "0"
+	}
+	if decimalPlaces != 2 {
+		*customNumFmt = strings.ReplaceAll(*customNumFmt, dp, "0.00")
+	}
+
+	if index := strings.Index(*customNumFmt, ";[Red]"); index != -1 {
+		negRed = true
+		*customNumFmt = (*customNumFmt)[:index]
+	}
+	return numFmt, customNumFmt, decimalPlaces, negRed, lang
 }

@@ -474,3 +474,159 @@ func TestGetNumFmtID(t *testing.T) {
 	assert.NotEqual(t, id1, id2)
 	assert.NoError(t, f.SaveAs(filepath.Join("test", "TestStyleNumFmt.xlsx")))
 }
+
+func TestGetStyle(t *testing.T) {
+	f := NewFile()
+	// Test read styles with unsupported charset
+	f.Styles = nil
+	f.Pkg.Store(defaultXMLPathStyles, MacintoshCyrillicCharset)
+	_, err := (*f).GetStyle(1)
+	assert.EqualError(t, err, "XML syntax error on line 1: invalid UTF-8")
+
+	f = NewFile()
+	_, err = (*f).GetStyle(2)
+	assert.EqualError(t, err, newInvalidStyleID(2).Error())
+	_, err = (*f).GetStyle(10)
+	assert.EqualError(t, err, newInvalidStyleID(10).Error())
+	f.Styles.CellXfs = nil
+	_, err = (*f).GetStyle(0)
+	assert.EqualError(t, err, newInvalidStyleID(0).Error())
+
+	f = NewFile()
+	borders := []Border{
+		{Type: "left", Color: "1E9EB3", Style: 1},
+		{Type: "right", Color: "1E9EB3", Style: 1},
+		{Type: "top", Color: "1E9EB3", Style: 1},
+		{Type: "bottom", Color: "1E9EB3", Style: 1},
+	}
+	font := &Font{
+		Bold:      true,
+		Italic:    true,
+		Underline: "single",
+		Family:    "Yu Gothic UI",
+		Size:      15,
+		Strike:    true,
+		Color:     "1E9EB3",
+		VertAlign: "",
+	}
+	fill := Fill{Type: "gradient", Color: []string{"1E9EB3", "EED045"}, Shading: 3}
+	alignment := &Alignment{Horizontal: "center", Vertical: "center", WrapText: true}
+	protection := &Protection{Locked: false, Hidden: true}
+	newStyle := &Style{Border: borders, Fill: fill, Font: font, Alignment: alignment, Protection: protection, NumFmt: 164, DecimalPlaces: 3, NegRed: true}
+	styleID, err := f.NewStyle(newStyle)
+	assert.NoError(t, err)
+	getStyle, err := f.GetStyle(styleID)
+	assert.NoError(t, err)
+	newStyle.NumFmt = 0
+	str := "\"¥\"#,##0.00"
+	newStyle.CustomNumFmt = &str
+	assert.EqualValues(t, newStyle, getStyle)
+}
+
+func TestGetFont(t *testing.T) {
+	f := NewFile()
+	font := &Font{
+		Bold:      true,
+		Italic:    true,
+		Underline: "single",
+		Family:    "Yu Gothic UI",
+		Size:      15,
+		Strike:    true,
+		Color:     "1E9EB3",
+		VertAlign: "",
+	}
+	newStyle := &Style{Font: font}
+	styleID, err := f.NewStyle(newStyle)
+	assert.NoError(t, err)
+	getStyle, err := f.GetStyle(styleID)
+	assert.NoError(t, err)
+	assert.EqualValues(t, newStyle, getStyle)
+
+	font = &Font{
+		Underline: "single",
+		Family:    "Yu Gothic UI",
+		Size:      15,
+		Color:     "1E9EB3",
+		VertAlign: "",
+	}
+	newStyle = &Style{Font: font}
+	styleID, err = f.NewStyle(newStyle)
+	assert.NoError(t, err)
+	getStyle, err = f.GetStyle(styleID)
+	assert.NoError(t, err)
+	assert.EqualValues(t, newStyle, getStyle)
+}
+
+func TestGetBorders(t *testing.T) {
+	f := NewFile()
+	borders := []Border{
+		{Type: "left", Color: "1E9EB3", Style: 1},
+		{Type: "right", Color: "1E9EB3", Style: 2},
+		{Type: "top", Color: "1E9EB3", Style: 3},
+		{Type: "bottom", Color: "1E9EB3", Style: 4},
+		{Type: "diagonalDown", Color: "1E9EB3", Style: 5},
+		{Type: "diagonalUp", Color: "1E9EB3", Style: 5}, // 对角线不能用不同的Style
+	}
+	newStyle := &Style{Border: borders}
+	styleID, err := f.NewStyle(newStyle)
+	assert.NoError(t, err)
+	getStyle, err := f.GetStyle(styleID)
+	assert.NoError(t, err)
+	assert.ElementsMatch(t, newStyle.Border, getStyle.Border)
+
+}
+
+func TestGetFill(t *testing.T) {
+	f := NewFile()
+	fill := Fill{Type: "gradient", Color: []string{"1E9EB3", "EED045"}, Shading: 2}
+	newStyle := &Style{Fill: fill}
+	styleID, err := f.NewStyle(newStyle)
+	assert.NoError(t, err)
+	getStyle, err := f.GetStyle(styleID)
+	assert.NoError(t, err)
+	assert.EqualValues(t, newStyle, getStyle)
+
+	f = NewFile()
+	fill = Fill{Type: "pattern", Color: []string{"1E9EB3"}, Pattern: 3}
+	newStyle = &Style{Fill: fill}
+	styleID, err = f.NewStyle(newStyle)
+	assert.NoError(t, err)
+	getStyle, err = f.GetStyle(styleID)
+	assert.NoError(t, err)
+	assert.EqualValues(t, newStyle, getStyle)
+}
+
+func TestGetNumFmtStyle(t *testing.T) {
+	f := NewFile()
+	newStyle := &Style{NumFmt: 4}
+	styleID, err := f.NewStyle(newStyle)
+	assert.NoError(t, err)
+	getStyle, err := f.GetStyle(styleID)
+	assert.NoError(t, err)
+	assert.EqualValues(t, newStyle, getStyle)
+
+	newStyle = &Style{NumFmt: 165, DecimalPlaces: 4, NegRed: true}
+	styleID, err = f.NewStyle(newStyle)
+	assert.NoError(t, err)
+	getStyle, err = f.GetStyle(styleID)
+	assert.NoError(t, err)
+	newStyle.NumFmt = 0
+	str := "[$$-409]#,##0.00"
+	assert.EqualValues(t, &Style{NumFmt: 0, DecimalPlaces: 4, CustomNumFmt: &str, NegRed: true}, getStyle)
+
+	newStyle = &Style{NumFmt: 18}
+	styleID, err = f.NewStyle(newStyle)
+	assert.NoError(t, err)
+	getStyle, err = f.GetStyle(styleID)
+	assert.NoError(t, err)
+	assert.EqualValues(t, newStyle, getStyle)
+
+	newStyle = &Style{NumFmt: 34, Lang: "zh-cn"}
+	styleID, err = f.NewStyle(newStyle)
+	assert.NoError(t, err)
+	getStyle, err = f.GetStyle(styleID)
+	assert.NoError(t, err)
+	newStyle.NumFmt = 0
+	str = "上午/下午 h\"时\"mm\"分\""
+	assert.EqualValues(t, &Style{NumFmt: 0, CustomNumFmt: &str}, getStyle)
+}
