@@ -565,7 +565,7 @@ func TestGetBorders(t *testing.T) {
 		{Type: "top", Color: "1E9EB3", Style: 3},
 		{Type: "bottom", Color: "1E9EB3", Style: 4},
 		{Type: "diagonalDown", Color: "1E9EB3", Style: 5},
-		{Type: "diagonalUp", Color: "1E9EB3", Style: 5}, // 对角线不能用不同的Style
+		{Type: "diagonalUp", Color: "1E9EB3", Style: 5},
 	}
 	newStyle := &Style{Border: borders}
 	styleID, err := f.NewStyle(newStyle)

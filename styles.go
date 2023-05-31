@@ -3843,7 +3843,8 @@ func (f *File) GetStyle(styleID int) (*Style, error) {
 	var protection *Protection
 	var font *Font
 	var fill *Fill = &Fill{}
-	numFmt, customNumFmt, decimalPlaces, negRed, lang := 0, nil, 2, false, ""
+	numFmt, customNumFmt, decimalPlaces, negRed := 0, nil, 2, false
+
 	if xf.ApplyFont != nil && *xf.ApplyFont != false {
 		font = getFont(styleSheet, *xf.FontID)
 	}
@@ -3853,10 +3854,10 @@ func (f *File) GetStyle(styleID int) (*Style, error) {
 	if xf.ApplyFill != nil && *xf.ApplyFill != false {
 		fill = getFill(styleSheet, *xf.FillID)
 	}
-	// 找不到对应的numFmt,返回的numFmt为-1
 	if xf.ApplyNumberFormat != nil && *xf.ApplyNumberFormat != false {
-		numFmt, customNumFmt, decimalPlaces, negRed, lang = getNumFmtStyle(xf, styleSheet)
+		numFmt, customNumFmt, decimalPlaces, negRed = getNumFmtStyle(xf, styleSheet)
 	}
+
 	if xf.ApplyAlignment != nil && *xf.ApplyAlignment != false {
 		alignment = &Alignment{
 			Horizontal:      xf.Alignment.Horizontal,
@@ -3888,7 +3889,6 @@ func (f *File) GetStyle(styleID int) (*Style, error) {
 		DecimalPlaces: decimalPlaces,
 		CustomNumFmt:  customNumFmt,
 		NegRed:        negRed,
-		Lang:          lang,
 	}
 	return style, err
 }
@@ -3901,6 +3901,7 @@ func getFont(xlsxStyle *xlsxStyleSheet, fontID int) *Font {
 		}
 		return *str.Val
 	}
+
 	xfFont := xlsxStyle.Fonts.Font[fontID]
 	underline := "none"
 	if xfFont.U != nil {
@@ -3909,6 +3910,7 @@ func getFont(xlsxStyle *xlsxStyleSheet, fontID int) *Font {
 	if xfFont.Color.RGB != "" {
 		xfFont.Color.RGB = xfFont.Color.RGB[2:]
 	}
+
 	font := &Font{
 		Bold:         judgeBoolNil(xfFont.B),
 		Italic:       judgeBoolNil(xfFont.I),
@@ -3927,7 +3929,6 @@ func getFont(xlsxStyle *xlsxStyleSheet, fontID int) *Font {
 
 // getBorder provides a function to get border by given border ID.
 func getBorders(styleSheet *xlsxStyleSheet, borderID int) []Border {
-
 	borders := make([]Border, 0)
 	getBorderStyleIndex := func(style string) int {
 		index := 0
@@ -4000,6 +4001,7 @@ func getBorders(styleSheet *xlsxStyleSheet, borderID int) []Border {
 func getFill(styleSheet *xlsxStyleSheet, fillID int) *Fill {
 	xlsxFill := styleSheet.Fills.Fill[fillID]
 	fill := &Fill{}
+
 	if xlsxFill.PatternFill != nil {
 		fill.Type = "pattern"
 		for i, pattern := range fillPatterns {
@@ -4011,6 +4013,7 @@ func getFill(styleSheet *xlsxStyleSheet, fillID int) *Fill {
 		if xlsxFill.PatternFill.FgColor != nil {
 			fill.Color = append(fill.Color, xlsxFill.PatternFill.FgColor.RGB[2:])
 		}
+
 	} else {
 		fill.Type = "gradient"
 		fill.Color = append(fill.Color, xlsxFill.GradientFill.Stop[0].Color.RGB[2:])
@@ -4027,13 +4030,14 @@ func getFill(styleSheet *xlsxStyleSheet, fillID int) *Fill {
 			}
 		}
 	}
+
 	return fill
 }
 
 // getNumFmtStyle provides a function to get Style.NumFmt, Style.CustomNumFmt,
 // Style.DecimalPlaces, Style.DecimalPlaces and Style.Lang by given xlsxXf and
 // xlsxStyleSheet.
-func getNumFmtStyle(xf xlsxXf, styleSheet *xlsxStyleSheet) (numFmt int, customNumFmt *string, decimalPlaces int, negRed bool, lang string) {
+func getNumFmtStyle(xf xlsxXf, styleSheet *xlsxStyleSheet) (numFmt int, customNumFmt *string, decimalPlaces int, negRed bool) {
 	numFmtID := *xf.NumFmtID
 	decimalPlaces = 2
 	if styleSheet.NumFmts == nil {
@@ -4074,5 +4078,5 @@ func getNumFmtStyle(xf xlsxXf, styleSheet *xlsxStyleSheet) (numFmt int, customNu
 		negRed = true
 		*customNumFmt = (*customNumFmt)[:index]
 	}
-	return numFmt, customNumFmt, decimalPlaces, negRed, lang
+	return numFmt, customNumFmt, decimalPlaces, negRed
 }
